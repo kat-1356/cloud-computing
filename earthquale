@@ -1,0 +1,157 @@
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ wget http://172.1.14.200:81/cclab/ccbd-lab/Dataset-2024/earthquake_data.csv
+--2025-04-07 10:15:53--  http://172.1.14.200:81/cclab/ccbd-lab/Dataset-2024/earthquake_data.csv
+Connecting to 172.1.14.200:81... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 2382 (2.3K) [application/octet-stream]
+Saving to: ‘earthquake_data.csv’
+
+earthquake_data.csv         100%[==========================================>]   2.33K  --.-KB/s    in 0s      
+
+2025-04-07 10:15:53 (569 MB/s) - ‘earthquake_data.csv’ saved [2382/2382]
+
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ echo 'import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.Mapper;
+
+import java.io.IOException;
+
+public class EarthquakeMapper extends Mapper<LongWritable, Text, Text, FloatWritable> {
+    @Override
+    protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+        String line = value.toString();
+        String[] fields = line.split(","); // Adjust delimiter based on your file
+        if (fields.length > 2) {
+            String location = fields[0]; // Extract location
+            float magnitude = Float.parseFloat(fields[1]); // Extract magnitude
+            context.write(new Text(location), new FloatWritable(magnitude));
+        }
+    }
+}' > EarthquakeMapper.java
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ echo 'import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class EarthquakeDriver {
+    public static void main(String[] args) throws Exception {
+        if (args.length < 2) {
+            System.err.println("Usage: EarthquakeDriver <input path> <output path>");
+            System.exit(-1);
+        }
+
+        Job job = Job.getInstance();
+        job.setJarByClass(EarthquakeDriver.class);
+        job.setJobName("Earthquake Data Analysis");
+
+        FileInputFormat.addInputPath(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+
+        job.setMapperClass(EarthquakeMapper.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(FloatWritable.class);
+
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
+    }
+}' > EarthquakeDriver.java
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ javac -classpath $(hadoop classpath) -d . EarthquakeMapper.java EarthquakeDriver.java
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ jar -cvf earthquake_analysis.jar *.class
+added manifest
+adding: CropDriver.class(in = 1385) (out= 792)(deflated 42%)
+adding: CropMapper.class(in = 1694) (out= 676)(deflated 60%)
+adding: DriverExample.class(in = 1396) (out= 796)(deflated 42%)
+adding: EarthquakeDriver.class(in = 1411) (out= 798)(deflated 43%)
+adding: EarthquakeMapper.class(in = 1712) (out= 685)(deflated 59%)
+adding: MapperExample.class(in = 1700) (out= 680)(deflated 60%)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ hadoop jar earthquake_analysis.jar EarthquakeDriver file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/earthquake_data.csv file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/output
+2025-04-07 10:16:23,392 INFO impl.MetricsConfig: Loaded properties from hadoop-metrics2.properties
+2025-04-07 10:16:23,429 INFO impl.MetricsSystemImpl: Scheduled Metric snapshot period at 10 second(s).
+2025-04-07 10:16:23,429 INFO impl.MetricsSystemImpl: JobTracker metrics system started
+Exception in thread "main" org.apache.hadoop.mapred.FileAlreadyExistsException: Output directory file:/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output already exists
+	at org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.checkOutputSpecs(FileOutputFormat.java:164)
+	at org.apache.hadoop.mapreduce.JobSubmitter.checkSpecs(JobSubmitter.java:277)
+	at org.apache.hadoop.mapreduce.JobSubmitter.submitJobInternal(JobSubmitter.java:143)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1565)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1562)
+	at java.base/java.security.AccessController.doPrivileged(Native Method)
+	at java.base/javax.security.auth.Subject.doAs(Subject.java:423)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1762)
+	at org.apache.hadoop.mapreduce.Job.submit(Job.java:1562)
+	at org.apache.hadoop.mapreduce.Job.waitForCompletion(Job.java:1583)
+	at EarthquakeDriver.main(EarthquakeDriver.java:25)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.apache.hadoop.util.RunJar.run(RunJar.java:323)
+	at org.apache.hadoop.util.RunJar.main(RunJar.java:236)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat ~/1ms22cs60/hadoop-3.2.2/output/part-00000
+cat: /home/ritlab-01/1ms22cs60/hadoop-3.2.2/output/part-00000: No such file or directory
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > analyze_earthquake.py << EOL
+import csv
+from collections import defaultdict
+
+# Read earthquake data
+data_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/earthquake_data.csv"
+output_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/earthquake_output.txt"
+
+def process_earthquake_data(input_path, output_path):
+    magnitude_by_location = defaultdict(float)
+
+    # Open the CSV file
+    with open(input_path, "r") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if len(row) > 1:
+                location = row[0]
+                magnitude = float(row[1])
+                magnitude_by_location[location] = max(magnitude_by_location[location], magnitude)
+
+    # Write results to a file
+    with open(output_path, "w") as f:
+        for location, magnitude in magnitude_by_location.items():
+            f.write(f"{location}: {magnitude}\n")
+
+process_earthquake_data(data_file, output_file)
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ python3 analyze_earthquake.py
+Traceback (most recent call last):
+  File "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/analyze_earthquake.py", line 25, in <module>
+    process_earthquake_data(data_file, output_file)
+  File "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/analyze_earthquake.py", line 17, in process_earthquake_data
+    magnitude = float(row[1])
+ValueError: could not convert string to float: 'b000em0n'
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat /home/ritlab-01/1ms22cs60/hadoop-3.2.2/earthquake_output.txt
+cat: /home/ritlab-01/1ms22cs60/hadoop-3.2.2/earthquake_output.txt: No such file or directory
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > analyze_earthquake.py << EOL
+import csv
+from collections import defaultdict
+
+data_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/earthquake_data.csv"
+output_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/earthquake_output.txt"
+
+def process_earthquake_data(input_path, output_path):
+    magnitude_by_location = defaultdict(float)
+
+    with open(input_path, "r") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if len(row) > 1:
+                try:
+                    location = row[0]
+                    magnitude = float(row[1])
+                    magnitude_by_location[location] = max(magnitude_by_location[location], magnitude)
+                except ValueError:
+                    # Skip invalid rows
+                    pass
+
+    with open(output_path, "w") as f:
+        for location, magnitude in magnitude_by_location.items():
+            f.write(f"{location}: {magnitude}\n")
+
+process_earthquake_data(data_file, output_file)
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ python3 analyze_earthquake.py
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat /home/ritlab-01/1ms22cs60/hadoop-3.2.2/earthquake_output.txt
+ak: 10637362.0
+uu: 60009747.0
+ci: 15272145.0
