@@ -1,0 +1,290 @@
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ /home/ritlab-01/1ms22cs60/hadoop-3.2.2/bin/hadoop version
+Hadoop 3.2.2
+Source code repository Unknown -r 7a3bc90b05f257c8ace2f76d74264906f0f7a932
+Compiled by hexiaoqiao on 2021-01-03T09:26Z
+Compiled with protoc 2.5.0
+From source with checksum 5a8f564f46624254b27f6a33126ff4
+This command was run using /home/ritlab-01/1ms22cs60/hadoop-3.2.2/share/hadoop/common/hadoop-common-3.2.2.jar
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ echo 'export PATH=$PATH:/home/ritlab-01/1ms22cs60/hadoop-3.2.2/bin' >> ~/.bashrc
+source ~/.bashrc
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ wget http://172.1.14.200:81/cclab/ccbd-lab/Dataset-2024/weather_report.txt
+ 
+--2025-04-07 10:04:26--  http://172.1.14.200:81/cclab/ccbd-lab/Dataset-2024/weather_report.txt
+Connecting to 172.1.14.200:81... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 1060 (1.0K) [text/plain]
+Saving to: ‘weather_report.txt’
+
+weather_report.txt         100%[=======================================>]   1.04K  --.-KB/s    in 0s      
+
+2025-04-07 10:04:26 (483 MB/s) - ‘weather_report.txt’ saved [1060/1060]
+
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ mv weather_report.txt hadoop-3.2.2/weather_report.txt
+mv: cannot move 'weather_report.txt' to 'hadoop-3.2.2/weather_report.txt': No such file or directory
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ echo 'import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.Mapper;
+
+import java.io.IOException;
+
+public class MapperExample extends Mapper<LongWritable, Text, Text, IntWritable> {
+    @Override
+    protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+        String line = value.toString();
+        String[] fields = line.split(","); // Change delimiter if needed
+        if (fields.length > 1) {
+            String date = fields[0]; // Date
+            int temperature = Integer.parseInt(fields[1]); // Temperature
+            context.write(new Text(date), new IntWritable(temperature));
+        }
+    }
+}' > MapperExample.java
+ 
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ echo 'import org.apache.hadoop.fs.Path; 
+import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class DriverExample {
+    public static void main(String[] args) throws Exception {
+        if (args.length < 2) {
+            System.err.println("Usage: DriverExample <input path> <output path>");
+            System.exit(-1);
+        }
+
+        Job job = Job.getInstance();
+        job.setJarByClass(DriverExample.class);
+        job.setJobName("Weather Report Analysis");
+
+        FileInputFormat.addInputPath(job, new Path(args[0])); // Input path
+        FileOutputFormat.setOutputPath(job, new Path(args[1])); // Output path
+
+        job.setMapperClass(MapperExample.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(IntWritable.class);
+
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
+    }
+}' > DriverExample.java
+ 
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ javac -classpath $(hadoop classpath) -d . MapperExample.java DriverExample.java
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ jar -cvf weather_analysis.jar *.class
+added manifest
+adding: DriverExample.class(in = 1396) (out= 796)(deflated 42%)
+adding: MapperExample.class(in = 1700) (out= 680)(deflated 60%)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ hadoop jar weather_analysis.jar DriverExample file:///path/to/weather_report.txt file:///path/to/output
+ 
+2025-04-07 10:07:32,316 INFO impl.MetricsConfig: Loaded properties from hadoop-metrics2.properties
+2025-04-07 10:07:32,360 INFO impl.MetricsSystemImpl: Scheduled Metric snapshot period at 10 second(s).
+2025-04-07 10:07:32,361 INFO impl.MetricsSystemImpl: JobTracker metrics system started
+2025-04-07 10:07:32,389 WARN mapreduce.JobResourceUploader: Hadoop command-line option parsing not performed. Implement the Tool interface and execute your application with ToolRunner to remedy this.
+2025-04-07 10:07:32,404 INFO mapreduce.JobSubmitter: Cleaning up the staging area file:/tmp/hadoop/mapred/staging/ritlab-01909439279/.staging/job_local909439279_0001
+Exception in thread "main" org.apache.hadoop.mapreduce.lib.input.InvalidInputException: Input path does not exist: file:/path/to/weather_report.txt
+	at org.apache.hadoop.mapreduce.lib.input.FileInputFormat.singleThreadedListStatus(FileInputFormat.java:332)
+	at org.apache.hadoop.mapreduce.lib.input.FileInputFormat.listStatus(FileInputFormat.java:274)
+	at org.apache.hadoop.mapreduce.lib.input.FileInputFormat.getSplits(FileInputFormat.java:396)
+	at org.apache.hadoop.mapreduce.JobSubmitter.writeNewSplits(JobSubmitter.java:310)
+	at org.apache.hadoop.mapreduce.JobSubmitter.writeSplits(JobSubmitter.java:327)
+	at org.apache.hadoop.mapreduce.JobSubmitter.submitJobInternal(JobSubmitter.java:200)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1565)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1562)
+	at java.base/java.security.AccessController.doPrivileged(Native Method)
+	at java.base/javax.security.auth.Subject.doAs(Subject.java:423)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1762)
+	at org.apache.hadoop.mapreduce.Job.submit(Job.java:1562)
+	at org.apache.hadoop.mapreduce.Job.waitForCompletion(Job.java:1583)
+	at DriverExample.main(DriverExample.java:25)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.apache.hadoop.util.RunJar.run(RunJar.java:323)
+	at org.apache.hadoop.util.RunJar.main(RunJar.java:236)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat /path/to/output/part-00000
+cat: /path/to/output/part-00000: No such file or directory
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ hadoop job -list all
+WARNING: Use of this script to execute job is deprecated.
+WARNING: Attempting to execute replacement "mapred job" instead.
+
+2025-04-07 10:08:10,810 INFO impl.MetricsConfig: Loaded properties from hadoop-metrics2.properties
+2025-04-07 10:08:10,848 INFO impl.MetricsSystemImpl: Scheduled Metric snapshot period at 10 second(s).
+2025-04-07 10:08:10,849 INFO impl.MetricsSystemImpl: JobTracker metrics system started
+Exception in thread "main" java.lang.NullPointerException
+	at org.apache.hadoop.mapreduce.tools.CLI.displayJobList(CLI.java:784)
+	at org.apache.hadoop.mapreduce.tools.CLI.displayJobList(CLI.java:769)
+	at org.apache.hadoop.mapreduce.tools.CLI.listAllJobs(CLI.java:697)
+	at org.apache.hadoop.mapreduce.tools.CLI.run(CLI.java:428)
+	at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:76)
+	at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:90)
+	at org.apache.hadoop.mapred.JobClient.main(JobClient.java:1277)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ hadoop jar weather_analysis.jar DriverExample file:///path/to/weather_report.txt file:///path/to/output
+2025-04-07 10:08:17,004 INFO impl.MetricsConfig: Loaded properties from hadoop-metrics2.properties
+2025-04-07 10:08:17,040 INFO impl.MetricsSystemImpl: Scheduled Metric snapshot period at 10 second(s).
+2025-04-07 10:08:17,040 INFO impl.MetricsSystemImpl: JobTracker metrics system started
+2025-04-07 10:08:17,067 WARN mapreduce.JobResourceUploader: Hadoop command-line option parsing not performed. Implement the Tool interface and execute your application with ToolRunner to remedy this.
+2025-04-07 10:08:17,082 INFO mapreduce.JobSubmitter: Cleaning up the staging area file:/tmp/hadoop/mapred/staging/ritlab-01922248092/.staging/job_local922248092_0001
+Exception in thread "main" org.apache.hadoop.mapreduce.lib.input.InvalidInputException: Input path does not exist: file:/path/to/weather_report.txt
+	at org.apache.hadoop.mapreduce.lib.input.FileInputFormat.singleThreadedListStatus(FileInputFormat.java:332)
+	at org.apache.hadoop.mapreduce.lib.input.FileInputFormat.listStatus(FileInputFormat.java:274)
+	at org.apache.hadoop.mapreduce.lib.input.FileInputFormat.getSplits(FileInputFormat.java:396)
+	at org.apache.hadoop.mapreduce.JobSubmitter.writeNewSplits(JobSubmitter.java:310)
+	at org.apache.hadoop.mapreduce.JobSubmitter.writeSplits(JobSubmitter.java:327)
+	at org.apache.hadoop.mapreduce.JobSubmitter.submitJobInternal(JobSubmitter.java:200)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1565)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1562)
+	at java.base/java.security.AccessController.doPrivileged(Native Method)
+	at java.base/javax.security.auth.Subject.doAs(Subject.java:423)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1762)
+	at org.apache.hadoop.mapreduce.Job.submit(Job.java:1562)
+	at org.apache.hadoop.mapreduce.Job.waitForCompletion(Job.java:1583)
+	at DriverExample.main(DriverExample.java:25)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.apache.hadoop.util.RunJar.run(RunJar.java:323)
+	at org.apache.hadoop.util.RunJar.main(RunJar.java:236)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ ls /path/to/output
+ls: cannot access '/path/to/output': No such file or directory
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ ls -l /path/to/output
+ls: cannot access '/path/to/output': No such file or directory
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ mkdir ~/1ms22cs60/hadoop-3.2.2/output
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ hadoop jar weather_analysis.jar DriverExample file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/weather_report.txt file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/output
+2025-04-07 10:09:01,532 INFO impl.MetricsConfig: Loaded properties from hadoop-metrics2.properties
+2025-04-07 10:09:01,568 INFO impl.MetricsSystemImpl: Scheduled Metric snapshot period at 10 second(s).
+2025-04-07 10:09:01,568 INFO impl.MetricsSystemImpl: JobTracker metrics system started
+Exception in thread "main" org.apache.hadoop.mapred.FileAlreadyExistsException: Output directory file:/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output already exists
+	at org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.checkOutputSpecs(FileOutputFormat.java:164)
+	at org.apache.hadoop.mapreduce.JobSubmitter.checkSpecs(JobSubmitter.java:277)
+	at org.apache.hadoop.mapreduce.JobSubmitter.submitJobInternal(JobSubmitter.java:143)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1565)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1562)
+	at java.base/java.security.AccessController.doPrivileged(Native Method)
+	at java.base/javax.security.auth.Subject.doAs(Subject.java:423)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1762)
+	at org.apache.hadoop.mapreduce.Job.submit(Job.java:1562)
+	at org.apache.hadoop.mapreduce.Job.waitForCompletion(Job.java:1583)
+	at DriverExample.main(DriverExample.java:25)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.apache.hadoop.util.RunJar.run(RunJar.java:323)
+	at org.apache.hadoop.util.RunJar.main(RunJar.java:236)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ ls ~/1ms22cs60/hadoop-3.2.2/output
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat ~/1ms22cs60/hadoop-3.2.2/output/part-00000
+cat: /home/ritlab-01/1ms22cs60/hadoop-3.2.2/output/part-00000: No such file or directory
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ hadoop jar weather_analysis.jar DriverExample file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/weather_report.txt file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/output
+2025-04-07 10:09:27,090 INFO impl.MetricsConfig: Loaded properties from hadoop-metrics2.properties
+2025-04-07 10:09:27,126 INFO impl.MetricsSystemImpl: Scheduled Metric snapshot period at 10 second(s).
+2025-04-07 10:09:27,127 INFO impl.MetricsSystemImpl: JobTracker metrics system started
+Exception in thread "main" org.apache.hadoop.mapred.FileAlreadyExistsException: Output directory file:/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output already exists
+	at org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.checkOutputSpecs(FileOutputFormat.java:164)
+	at org.apache.hadoop.mapreduce.JobSubmitter.checkSpecs(JobSubmitter.java:277)
+	at org.apache.hadoop.mapreduce.JobSubmitter.submitJobInternal(JobSubmitter.java:143)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1565)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1562)
+	at java.base/java.security.AccessController.doPrivileged(Native Method)
+	at java.base/javax.security.auth.Subject.doAs(Subject.java:423)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1762)
+	at org.apache.hadoop.mapreduce.Job.submit(Job.java:1562)
+	at org.apache.hadoop.mapreduce.Job.waitForCompletion(Job.java:1583)
+	at DriverExample.main(DriverExample.java:25)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.apache.hadoop.util.RunJar.run(RunJar.java:323)
+	at org.apache.hadoop.util.RunJar.main(RunJar.java:236)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > analyze_weather.py << EOL
+import csv
+from collections import defaultdict
+
+data_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/weather_report.txt"
+output_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/weather_output.txt"
+
+def process_weather_data(input_path, output_path):
+    max_temp_by_date = defaultdict(int)
+
+    # Open the dataset
+    with open(input_path, "r") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if len(row) > 1:
+                try:
+                    date = row[0]
+                    temperature = int(row[1])
+                    max_temp_by_date[date] = max(max_temp_by_date[date], temperature)
+                except ValueError:
+                    # Skip invalid rows
+                    pass
+
+    # Write results to a file
+    with open(output_path, "w") as f:
+        for date, temperature in max_temp_by_date.items():
+            f.write(f"{date}: {temperature}\n")
+
+process_weather_data(data_file, output_file)
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ python3 analyze_weather.py
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat /home/ritlab-01/1ms22cs60/hadoop-3.2.2/weather_output.txt
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat /home/ritlab-01/1ms22cs60/hadoop-3.2.2/weather_report.txt
+0067011990999991950051507004+68750+023550FM-12+038299999V0203301N00671220001CN9999999N9+00331+99999999999
+0043011990999991950051512004+68750+023550FM-12+038299999V0203201N00671220001CN9999999N9+00221+99999999999
+0043011990999991950051518004+68750+023550FM-12+038299999V0203201N00261220001CN9999999N9-00111+99999999999
+0043012650999991949032412004+62300+010750FM-12+048599999V0202701N00461220001CN0500001N9+01111+99999999999
+0043012650999991949032418004+62300+010750FM-12+048599999V0202701N00461220001CN0500001N9+00781+99999999999
+0067011990999991944051507004+68750+023550FM-12+038299999V0203301N00671220001CN9999999N9+00441+99999999999
+0043011990999991944051512004+68750+023550FM-12+038299999V0203201N00671220001CN9999999N9+00221+99999999999
+0043011990999991942051518004+68750+023550FM-12+038299999V0203201N00261220001CN9999999N9-00551+99999999999
+0043012650999991942032412004+62300+010750FM-12+048599999V0202701N00461220001CN0500001N9+01111+99999999999
+0043012650999991942032418004+62300+010750FM-12+048599999V0202701N00461220001CN0500001N9+00781+99999999999
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > analyze_weather_debug.py << EOL
+import csv
+from collections import defaultdict
+
+data_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/weather_report.txt"
+output_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/weather_output.txt"
+
+def process_weather_data(input_path, output_path):
+    max_temp_by_date = defaultdict(int)
+
+    with open(input_path, "r") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            print(row)  # Debugging line to show each row being processed
+            if len(row) > 1:
+                try:
+                    date = row[0]
+                    temperature = int(row[1])
+                    max_temp_by_date[date] = max(max_temp_by_date[date], temperature)
+                except ValueError:
+                    print(f"Skipping invalid row: {row}")  # Debug invalid rows
+
+    with open(output_path, "w") as f:
+        for date, temperature in max_temp_by_date.items():
+            f.write(f"{date}: {temperature}\n")
+
+process_weather_data(data_file, output_file)
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ python3 analyze_weather_debug.py
+['0067011990999991950051507004+68750+023550FM-12+038299999V0203301N00671220001CN9999999N9+00331+99999999999']
+['0043011990999991950051512004+68750+023550FM-12+038299999V0203201N00671220001CN9999999N9+00221+99999999999']
+['0043011990999991950051518004+68750+023550FM-12+038299999V0203201N00261220001CN9999999N9-00111+99999999999']
+['0043012650999991949032412004+62300+010750FM-12+048599999V0202701N00461220001CN0500001N9+01111+99999999999']
+['0043012650999991949032418004+62300+010750FM-12+048599999V0202701N00461220001CN0500001N9+00781+99999999999']
+['0067011990999991944051507004+68750+023550FM-12+038299999V0203301N00671220001CN9999999N9+00441+99999999999']
+['0043011990999991944051512004+68750+023550FM-12+038299999V0203201N00671220001CN9999999N9+00221+99999999999']
+['0043011990999991942051518004+68750+023550FM-12+038299999V0203201N00261220001CN9999999N9-00551+99999999999']
+['0043012650999991942032412004+62300+010750FM-12+048599999V0202701N00461220001CN0500001N9+01111+99999999999']
+['0043012650999991942032418004+62300+010750FM-12+048599999V0202701N00461220001CN0500001N9+00781+99999999999']
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat /home/ritlab-01/1ms22cs60/hadoop-3.2.2/weather_output.txt
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ sed -i 's/weather_report.txt/sample_weather.txt/' analyze_weather_debug.py
+python3 analyze_weather_debug.py
+cat /home/ritlab-01/1ms22cs60/hadoop-3.2.2/weather_output.txt
+['2023-04-01', '35']
+['2023-04-01', '40']
+['2023-04-02', '30']
+['2023-04-02', '50']
+2023-04-01: 40
+2023-04-02: 50
