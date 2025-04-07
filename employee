@@ -1,0 +1,398 @@
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ wget http://172.1.14.200:81/cclab/ccbd-lab/Dataset-2024/employees_Data.txt
+--2025-04-07 10:27:29--  http://172.1.14.200:81/cclab/ccbd-lab/Dataset-2024/employees_Data.txt
+Connecting to 172.1.14.200:81... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 8092 (7.9K) [text/plain]
+Saving to: ‘employees_Data.txt.2’
+
+employees_Data.txt.2        100%[==========================================>]   7.90K  --.-KB/s    in 0s      
+
+2025-04-07 10:27:29 (47.6 MB/s) - ‘employees_Data.txt.2’ saved [8092/8092]
+
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > analyze_employees.py << EOL
+import csv
+from collections import defaultdict
+
+data_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/employees_Data.txt"
+output_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/employees_output.txt"
+
+def process_employees_data(input_path, output_path):
+    max_salary_by_department = defaultdict(float)
+
+    with open(input_path, "r") as f:
+        reader = csv.reader(f, delimiter=",")  # Adjust delimiter if needed
+        for row in reader:
+            if len(row) > 2:  # Ensure the row has enough columns
+                try:
+                    department = row[1]  # Assuming department is the second column
+                    salary = float(row[2])  # Assuming salary is the third column
+                    max_salary_by_department[department] = max(max_salary_by_department[department], salary)
+                except ValueError:
+                    # Skip invalid rows
+                    pass
+
+    with open(output_path, "w") as f:
+        for department, salary in max_salary_by_department.items():
+            f.write(f"{department}: {salary}\n")
+
+process_employees_data(data_file, output_file)
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$  echo 'import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.Mapper;
+> ^C
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ echo 'import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.Mapper;
+> ^C
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ echo 'import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.Mapper;
+> ^C
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > EmployeesMapper.java << EOL
+import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.Mapper;
+
+import java.io.IOException;
+
+public class EmployeesMapper extends Mapper<LongWritable, Text, Text, FloatWritable> {
+    @Override
+    protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+        String line = value.toString();
+        String[] fields = line.split(","); // Adjust delimiter if needed
+        if (fields.length > 2) {
+            try {
+                String department = fields[1]; // Extract department
+                float salary = Float.parseFloat(fields[2]); // Extract salary
+                context.write(new Text(department), new FloatWritable(salary));
+            } catch (NumberFormatException e) {
+                // Skip invalid rows
+            }
+        }
+    }
+}
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > EmployeesReducer.java << EOL
+import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.Reducer;
+
+import java.io.IOException;
+
+public class EmployeesReducer extends Reducer<Text, FloatWritable, Text, FloatWritable> {
+    @Override
+    protected void reduce(Text key, Iterable<FloatWritable> values, Context context) throws IOException, InterruptedException {
+        float maxSalary = Float.MIN_VALUE;
+        for (FloatWritable value : values) {
+            maxSalary = Math.max(maxSalary, value.get());
+        }
+        context.write(key, new FloatWritable(maxSalary));
+    }
+}
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > EmployeesDriver.java << EOL
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class EmployeesDriver {
+    public static void main(String[] args) throws Exception {
+        if (args.length < 2) {
+            System.err.println("Usage: EmployeesDriver <input path> <output path>");
+            System.exit(-1);
+        }
+
+        Job job = Job.getInstance();
+        job.setJarByClass(EmployeesDriver.class);
+        job.setJobName("Employees Salary Analysis");
+
+        FileInputFormat.addInputPath(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+
+        job.setMapperClass(EmployeesMapper.class);
+        job.setReducerClass(EmployeesReducer.class);
+
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(FloatWritable.class);
+
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
+    }
+}
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ javac -classpath $(hadoop classpath) -d . EmployeesMapper.java EmployeesReducer.java EmployeesDriver.java
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ jar -cvf employees_analysis.jar *.class
+added manifest
+adding: CropDriver.class(in = 1385) (out= 792)(deflated 42%)
+adding: CropMapper.class(in = 1694) (out= 676)(deflated 60%)
+adding: DriverExample.class(in = 1396) (out= 796)(deflated 42%)
+adding: EarthquakeDriver.class(in = 1411) (out= 798)(deflated 43%)
+adding: EarthquakeMapper.class(in = 1712) (out= 685)(deflated 59%)
+adding: EmployeesDriver.class(in = 1468) (out= 823)(deflated 43%)
+adding: EmployeesMapper.class(in = 1788) (out= 727)(deflated 59%)
+adding: EmployeesReducer.class(in = 1684) (out= 715)(deflated 57%)
+adding: MapperExample.class(in = 1700) (out= 680)(deflated 60%)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > process_employees_output.py << EOL
+def process_hadoop_output(file_path):
+    try:
+        with open(file_path, "r") as file:
+            lines = file.readlines()
+
+            if not lines:
+                print("The output file is empty!")
+                return
+
+            print("Hadoop Output:")
+            for line in lines:
+                print(line.strip())
+
+    except FileNotFoundError:
+        print(f"Error: The file '{file_path}' does not exist!")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+output_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output/part-00000"
+
+process_hadoop_output(output_file)
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ python3 process_employees_output.py
+Error: The file '/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output/part-00000' does not exist!
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ hadoop jar employees_analysis.jar EmployeesDriver file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/employees_Data.txt file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/output
+2025-04-07 10:30:03,484 INFO impl.MetricsConfig: Loaded properties from hadoop-metrics2.properties
+2025-04-07 10:30:03,520 INFO impl.MetricsSystemImpl: Scheduled Metric snapshot period at 10 second(s).
+2025-04-07 10:30:03,520 INFO impl.MetricsSystemImpl: JobTracker metrics system started
+Exception in thread "main" org.apache.hadoop.mapred.FileAlreadyExistsException: Output directory file:/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output already exists
+	at org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.checkOutputSpecs(FileOutputFormat.java:164)
+	at org.apache.hadoop.mapreduce.JobSubmitter.checkSpecs(JobSubmitter.java:277)
+	at org.apache.hadoop.mapreduce.JobSubmitter.submitJobInternal(JobSubmitter.java:143)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1565)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1562)
+	at java.base/java.security.AccessController.doPrivileged(Native Method)
+	at java.base/javax.security.auth.Subject.doAs(Subject.java:423)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1762)
+	at org.apache.hadoop.mapreduce.Job.submit(Job.java:1562)
+	at org.apache.hadoop.mapreduce.Job.waitForCompletion(Job.java:1583)
+	at EmployeesDriver.main(EmployeesDriver.java:27)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.apache.hadoop.util.RunJar.run(RunJar.java:323)
+	at org.apache.hadoop.util.RunJar.main(RunJar.java:236)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ python3 process_employees_output.py
+Error: The file '/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output/part-00000' does not exist!
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > process_employees_output.py << EOL
+def process_hadoop_output(file_path):
+    try:
+        with open(file_path, "r") as file:
+            lines = file.readlines()
+
+            if not lines:
+                print("The output file is empty!")
+                return
+
+            print("Hadoop Output:")
+            for line in lines:
+                print(line.strip())
+
+    except FileNotFoundError:
+        print(f"Error: The file '{file_path}' does not exist!")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+output_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output/part-00000"
+
+process_hadoop_output(output_file)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ rm -r /home/ritlab-01/1ms22cs60/hadoop-3.2.2/output
+hadoop jar employees_analysis.jar EmployeesDriver file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/employees_Data.txt file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/output
+2025-04-07 10:31:01,091 INFO impl.MetricsConfig: Loaded properties from hadoop-metrics2.properties
+2025-04-07 10:31:01,128 INFO impl.MetricsSystemImpl: Scheduled Metric snapshot period at 10 second(s).
+2025-04-07 10:31:01,128 INFO impl.MetricsSystemImpl: JobTracker metrics system started
+2025-04-07 10:31:01,151 WARN mapreduce.JobResourceUploader: Hadoop command-line option parsing not performed. Implement the Tool interface and execute your application with ToolRunner to remedy this.
+2025-04-07 10:31:01,167 INFO input.FileInputFormat: Total input files to process : 1
+2025-04-07 10:31:01,181 INFO mapreduce.JobSubmitter: number of splits:1
+2025-04-07 10:31:01,255 INFO mapreduce.JobSubmitter: Submitting tokens for job: job_local1615174406_0001
+2025-04-07 10:31:01,255 INFO mapreduce.JobSubmitter: Executing with tokens: []
+2025-04-07 10:31:01,306 INFO mapreduce.Job: The url to track the job: http://localhost:8080/
+2025-04-07 10:31:01,308 INFO mapreduce.Job: Running job: job_local1615174406_0001
+2025-04-07 10:31:01,309 INFO mapred.LocalJobRunner: OutputCommitter set in config null
+2025-04-07 10:31:01,313 INFO output.FileOutputCommitter: File Output Committer Algorithm version is 2
+2025-04-07 10:31:01,313 INFO output.FileOutputCommitter: FileOutputCommitter skip cleanup _temporary folders under output directory:false, ignore cleanup failures: false
+2025-04-07 10:31:01,313 INFO mapred.LocalJobRunner: OutputCommitter is org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter
+2025-04-07 10:31:01,329 INFO mapred.LocalJobRunner: Waiting for map tasks
+2025-04-07 10:31:01,330 INFO mapred.LocalJobRunner: Starting task: attempt_local1615174406_0001_m_000000_0
+2025-04-07 10:31:01,341 INFO output.FileOutputCommitter: File Output Committer Algorithm version is 2
+2025-04-07 10:31:01,341 INFO output.FileOutputCommitter: FileOutputCommitter skip cleanup _temporary folders under output directory:false, ignore cleanup failures: false
+2025-04-07 10:31:01,352 INFO mapred.Task:  Using ResourceCalculatorProcessTree : [ ]
+2025-04-07 10:31:01,354 INFO mapred.MapTask: Processing split: file:/home/ritlab-01/1ms22cs60/hadoop-3.2.2/employees_Data.txt:0+8092
+2025-04-07 10:31:01,389 INFO mapred.MapTask: (EQUATOR) 0 kvi 26214396(104857584)
+2025-04-07 10:31:01,390 INFO mapred.MapTask: mapreduce.task.io.sort.mb: 100
+2025-04-07 10:31:01,390 INFO mapred.MapTask: soft limit at 83886080
+2025-04-07 10:31:01,390 INFO mapred.MapTask: bufstart = 0; bufvoid = 104857600
+2025-04-07 10:31:01,390 INFO mapred.MapTask: kvstart = 26214396; length = 6553600
+2025-04-07 10:31:01,391 INFO mapred.MapTask: Map output collector class = org.apache.hadoop.mapred.MapTask$MapOutputBuffer
+2025-04-07 10:31:01,397 INFO mapred.LocalJobRunner: 
+2025-04-07 10:31:01,397 INFO mapred.MapTask: Starting flush of map output
+2025-04-07 10:31:01,406 INFO mapred.Task: Task:attempt_local1615174406_0001_m_000000_0 is done. And is in the process of committing
+2025-04-07 10:31:01,407 INFO mapred.LocalJobRunner: map
+2025-04-07 10:31:01,407 INFO mapred.Task: Task 'attempt_local1615174406_0001_m_000000_0' done.
+2025-04-07 10:31:01,409 INFO mapred.Task: Final Counters for attempt_local1615174406_0001_m_000000_0: Counters: 17
+	File System Counters
+		FILE: Number of bytes read=16479
+		FILE: Number of bytes written=554422
+		FILE: Number of read operations=0
+		FILE: Number of large read operations=0
+		FILE: Number of write operations=0
+	Map-Reduce Framework
+		Map input records=108
+		Map output records=0
+		Map output bytes=0
+		Map output materialized bytes=6
+		Input split bytes=127
+		Combine input records=0
+		Spilled Records=0
+		Failed Shuffles=0
+		Merged Map outputs=0
+		GC time elapsed (ms)=5
+		Total committed heap usage (bytes)=260046848
+	File Input Format Counters 
+		Bytes Read=8092
+2025-04-07 10:31:01,409 INFO mapred.LocalJobRunner: Finishing task: attempt_local1615174406_0001_m_000000_0
+2025-04-07 10:31:01,410 INFO mapred.LocalJobRunner: map task executor complete.
+2025-04-07 10:31:01,411 INFO mapred.LocalJobRunner: Waiting for reduce tasks
+2025-04-07 10:31:01,411 INFO mapred.LocalJobRunner: Starting task: attempt_local1615174406_0001_r_000000_0
+2025-04-07 10:31:01,415 INFO output.FileOutputCommitter: File Output Committer Algorithm version is 2
+2025-04-07 10:31:01,415 INFO output.FileOutputCommitter: FileOutputCommitter skip cleanup _temporary folders under output directory:false, ignore cleanup failures: false
+2025-04-07 10:31:01,416 INFO mapred.Task:  Using ResourceCalculatorProcessTree : [ ]
+2025-04-07 10:31:01,417 INFO mapred.ReduceTask: Using ShuffleConsumerPlugin: org.apache.hadoop.mapreduce.task.reduce.Shuffle@72d07d8f
+2025-04-07 10:31:01,418 WARN impl.MetricsSystemImpl: JobTracker metrics system already initialized!
+2025-04-07 10:31:01,427 INFO reduce.MergeManagerImpl: MergerManager: memoryLimit=2874356480, maxSingleShuffleLimit=718589120, mergeThreshold=1897075328, ioSortFactor=10, memToMemMergeOutputsThreshold=10
+2025-04-07 10:31:01,428 INFO reduce.EventFetcher: attempt_local1615174406_0001_r_000000_0 Thread started: EventFetcher for fetching Map Completion Events
+2025-04-07 10:31:01,437 INFO reduce.LocalFetcher: localfetcher#1 about to shuffle output of map attempt_local1615174406_0001_m_000000_0 decomp: 2 len: 6 to MEMORY
+2025-04-07 10:31:01,438 INFO reduce.InMemoryMapOutput: Read 2 bytes from map-output for attempt_local1615174406_0001_m_000000_0
+2025-04-07 10:31:01,439 INFO reduce.MergeManagerImpl: closeInMemoryFile -> map-output of size: 2, inMemoryMapOutputs.size() -> 1, commitMemory -> 0, usedMemory ->2
+2025-04-07 10:31:01,440 INFO reduce.EventFetcher: EventFetcher is interrupted.. Returning
+2025-04-07 10:31:01,440 INFO mapred.LocalJobRunner: 1 / 1 copied.
+2025-04-07 10:31:01,440 INFO reduce.MergeManagerImpl: finalMerge called with 1 in-memory map-outputs and 0 on-disk map-outputs
+2025-04-07 10:31:01,442 INFO mapred.Merger: Merging 1 sorted segments
+2025-04-07 10:31:01,442 INFO mapred.Merger: Down to the last merge-pass, with 0 segments left of total size: 0 bytes
+2025-04-07 10:31:01,442 INFO reduce.MergeManagerImpl: Merged 1 segments, 2 bytes to disk to satisfy reduce memory limit
+2025-04-07 10:31:01,442 INFO reduce.MergeManagerImpl: Merging 1 files, 6 bytes from disk
+2025-04-07 10:31:01,443 INFO reduce.MergeManagerImpl: Merging 0 segments, 0 bytes from memory into reduce
+2025-04-07 10:31:01,443 INFO mapred.Merger: Merging 1 sorted segments
+2025-04-07 10:31:01,443 INFO mapred.Merger: Down to the last merge-pass, with 0 segments left of total size: 0 bytes
+2025-04-07 10:31:01,443 INFO mapred.LocalJobRunner: 1 / 1 copied.
+2025-04-07 10:31:01,444 INFO Configuration.deprecation: mapred.skip.on is deprecated. Instead, use mapreduce.job.skiprecords
+2025-04-07 10:31:01,445 INFO mapred.Task: Task:attempt_local1615174406_0001_r_000000_0 is done. And is in the process of committing
+2025-04-07 10:31:01,446 INFO mapred.LocalJobRunner: 1 / 1 copied.
+2025-04-07 10:31:01,446 INFO mapred.Task: Task attempt_local1615174406_0001_r_000000_0 is allowed to commit now
+2025-04-07 10:31:01,446 INFO output.FileOutputCommitter: Saved output of task 'attempt_local1615174406_0001_r_000000_0' to file:/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output
+2025-04-07 10:31:01,447 INFO mapred.LocalJobRunner: reduce > reduce
+2025-04-07 10:31:01,447 INFO mapred.Task: Task 'attempt_local1615174406_0001_r_000000_0' done.
+2025-04-07 10:31:01,447 INFO mapred.Task: Final Counters for attempt_local1615174406_0001_r_000000_0: Counters: 24
+	File System Counters
+		FILE: Number of bytes read=16523
+		FILE: Number of bytes written=554436
+		FILE: Number of read operations=0
+		FILE: Number of large read operations=0
+		FILE: Number of write operations=0
+	Map-Reduce Framework
+		Combine input records=0
+		Combine output records=0
+		Reduce input groups=0
+		Reduce shuffle bytes=6
+		Reduce input records=0
+		Reduce output records=0
+		Spilled Records=0
+		Shuffled Maps =1
+		Failed Shuffles=0
+		Merged Map outputs=1
+		GC time elapsed (ms)=0
+		Total committed heap usage (bytes)=260046848
+	Shuffle Errors
+		BAD_ID=0
+		CONNECTION=0
+		IO_ERROR=0
+		WRONG_LENGTH=0
+		WRONG_MAP=0
+		WRONG_REDUCE=0
+	File Output Format Counters 
+		Bytes Written=8
+2025-04-07 10:31:01,447 INFO mapred.LocalJobRunner: Finishing task: attempt_local1615174406_0001_r_000000_0
+2025-04-07 10:31:01,447 INFO mapred.LocalJobRunner: reduce task executor complete.
+2025-04-07 10:31:02,312 INFO mapreduce.Job: Job job_local1615174406_0001 running in uber mode : false
+2025-04-07 10:31:02,312 INFO mapreduce.Job:  map 100% reduce 100%
+2025-04-07 10:31:02,313 INFO mapreduce.Job: Job job_local1615174406_0001 completed successfully
+2025-04-07 10:31:02,316 INFO mapreduce.Job: Counters: 30
+	File System Counters
+		FILE: Number of bytes read=33002
+		FILE: Number of bytes written=1108858
+		FILE: Number of read operations=0
+		FILE: Number of large read operations=0
+		FILE: Number of write operations=0
+	Map-Reduce Framework
+		Map input records=108
+		Map output records=0
+		Map output bytes=0
+		Map output materialized bytes=6
+		Input split bytes=127
+		Combine input records=0
+		Combine output records=0
+		Reduce input groups=0
+		Reduce shuffle bytes=6
+		Reduce input records=0
+		Reduce output records=0
+		Spilled Records=0
+		Shuffled Maps =1
+		Failed Shuffles=0
+		Merged Map outputs=1
+		GC time elapsed (ms)=5
+		Total committed heap usage (bytes)=520093696
+	Shuffle Errors
+		BAD_ID=0
+		CONNECTION=0
+		IO_ERROR=0
+		WRONG_LENGTH=0
+		WRONG_MAP=0
+		WRONG_REDUCE=0
+	File Input Format Counters 
+		Bytes Read=8092
+	File Output Format Counters 
+		Bytes Written=8
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ ls /home/ritlab-01/1ms22cs60/hadoop-3.2.2/output
+part-r-00000  _SUCCESS
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat /home/ritlab-01/1ms22cs60/hadoop-3.2.2/output/part-00000
+cat: /home/ritlab-01/1ms22cs60/hadoop-3.2.2/output/part-00000: No such file or directory
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > analyze_employees_direct.py << EOL
+import csv
+from collections import defaultdict
+
+data_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/employees_Data.txt"
+output_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/employees_direct_output.txt"
+
+def process_employees_data(input_path, output_path):
+    max_salary_by_department = defaultdict(float)
+
+    with open(input_path, "r") as f:
+        reader = csv.reader(f, delimiter=",")  # Adjust delimiter if needed
+        for row in reader:
+            if len(row) > 2:
+                try:
+                    department = row[1]
+                    salary = float(row[2])
+                    max_salary_by_department[department] = max(max_salary_by_department[department], salary)
+                except ValueError:
+                    pass  # Skip invalid rows
+
+    with open(output_path, "w") as f:
+        for department, salary in max_salary_by_department.items():
+            f.write(f"{department}: {salary}\n")
+
+process_employees_data(data_file, output_file)
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ python3 analyze_employees_direct.py
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat /home/ritlab-01/1ms22cs60/hadoop-3.2.2/employees_direct_output.txt
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat /home/ritlab-01/1ms22cs60/hadoop-3.2.2/employees_direct_output.txt
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat /home/ritlab-01/1ms22cs60/hadoop-3.2.2/employees_Data.txt
+100	Steven	King	M	SKING	515.123.4567	17-JUN-03	AD_PRES	25798.9			90
+101	Neena	Kochhar	M	NKOCHHAR	515.123.4568	21-SEP-05	AD_VP	18274.22		100	90
+102	Lex	De Haan	M	LDEHAAN	515.123.4569	13-JAN-01	AD_VP	18274.22		100	90
+119	Karen	Colmenares	F	KCOLMENA	515.127.4566	10-AUG-07	PU_CLERK	2500	114	30
+120	Matthew	Weiss	M	MWEISS	650.123.1234	18-JUL-04	ST_MAN	8000		100	50
