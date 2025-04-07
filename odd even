@@ -1,0 +1,221 @@
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ mv odd_or_even.txt ~/1ms22cs60/hadoop-3.2.2/odd_or_even.txt
+mv: 'odd_or_even.txt' and '/home/ritlab-01/1ms22cs60/hadoop-3.2.2/odd_or_even.txt' are the same file
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ wget http://172.1.14.200:81/cclab/ccbd-lab/Dataset-2024/odd_or_even.txt
+--2025-04-07 10:41:44--  http://172.1.14.200:81/cclab/ccbd-lab/Dataset-2024/odd_or_even.txt
+Connecting to 172.1.14.200:81... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 18 [text/plain]
+Saving to: ‘odd_or_even.txt.1’
+
+odd_or_even.txt.1           100%[==========================================>]      18  --.-KB/s    in 0s      
+
+2025-04-07 10:41:44 (11.5 MB/s) - ‘odd_or_even.txt.1’ saved [18/18]
+
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > OddOrEvenMapper.java << EOL
+import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.Mapper;
+
+import java.io.IOException;
+
+public class OddOrEvenMapper extends Mapper<LongWritable, Text, Text, Text> {
+    @Override
+    protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+        String line = value.toString();
+        try {
+            int number = Integer.parseInt(line.trim());
+            String result = (number % 2 == 0) ? "even" : "odd";
+            context.write(new Text(String.valueOf(number)), new Text(result));
+        } catch (NumberFormatException e) {
+            // Skip invalid rows
+        }
+    }
+}
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > OddOrEvenDriver.java << EOL
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class OddOrEvenDriver {
+    public static void main(String[] args) throws Exception {
+        if (args.length < 2) {
+            System.err.println("Usage: OddOrEvenDriver <input path> <output path>");
+            System.exit(-1);
+        }
+
+        Job job = Job.getInstance();
+        job.setJarByClass(OddOrEvenDriver.class);
+        job.setJobName("Odd or Even Analysis");
+
+        FileInputFormat.addInputPath(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+
+        job.setMapperClass(OddOrEvenMapper.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(Text.class);
+
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
+    }
+}
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ javac -classpath $(hadoop classpath) -d . OddOrEvenMapper.java OddOrEvenDriver.java
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ jar -cvf odd_or_even_analysis.jar *.class
+added manifest
+adding: CropDriver.class(in = 1385) (out= 792)(deflated 42%)
+adding: CropMapper.class(in = 1694) (out= 676)(deflated 60%)
+adding: DriverExample.class(in = 1396) (out= 796)(deflated 42%)
+adding: EarthquakeDriver.class(in = 1411) (out= 798)(deflated 43%)
+adding: EarthquakeMapper.class(in = 1712) (out= 685)(deflated 59%)
+adding: EmployeesDriver.class(in = 1468) (out= 823)(deflated 43%)
+adding: EmployeesMapper.class(in = 1788) (out= 727)(deflated 59%)
+adding: EmployeesReducer.class(in = 1684) (out= 715)(deflated 57%)
+adding: InsuranceDriver.class(in = 1466) (out= 827)(deflated 43%)
+adding: InsuranceMapper.class(in = 1788) (out= 725)(deflated 59%)
+adding: InsuranceReducer.class(in = 1684) (out= 714)(deflated 57%)
+adding: MapperExample.class(in = 1700) (out= 680)(deflated 60%)
+adding: OddOrEvenDriver.class(in = 1363) (out= 777)(deflated 42%)
+adding: OddOrEvenMapper.class(in = 1699) (out= 712)(deflated 58%)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ hadoop jar odd_or_even_analysis.jar OddOrEvenDriver file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/odd_or_even.txt file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/output
+2025-04-07 10:42:12,848 INFO impl.MetricsConfig: Loaded properties from hadoop-metrics2.properties
+2025-04-07 10:42:12,884 INFO impl.MetricsSystemImpl: Scheduled Metric snapshot period at 10 second(s).
+2025-04-07 10:42:12,884 INFO impl.MetricsSystemImpl: JobTracker metrics system started
+Exception in thread "main" org.apache.hadoop.mapred.FileAlreadyExistsException: Output directory file:/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output already exists
+	at org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.checkOutputSpecs(FileOutputFormat.java:164)
+	at org.apache.hadoop.mapreduce.JobSubmitter.checkSpecs(JobSubmitter.java:277)
+	at org.apache.hadoop.mapreduce.JobSubmitter.submitJobInternal(JobSubmitter.java:143)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1565)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1562)
+	at java.base/java.security.AccessController.doPrivileged(Native Method)
+	at java.base/javax.security.auth.Subject.doAs(Subject.java:423)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1762)
+	at org.apache.hadoop.mapreduce.Job.submit(Job.java:1562)
+	at org.apache.hadoop.mapreduce.Job.waitForCompletion(Job.java:1583)
+	at OddOrEvenDriver.main(OddOrEvenDriver.java:25)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.apache.hadoop.util.RunJar.run(RunJar.java:323)
+	at org.apache.hadoop.util.RunJar.main(RunJar.java:236)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ ls /home/ritlab-01/1ms22cs60/hadoop-3.2.2/output
+part-r-00000  _SUCCESS
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > process_odd_or_even_output.py << EOL
+def process_hadoop_output(file_path):
+    try:
+        with open(file_path, "r") as file:
+            lines = file.readlines()
+
+            if not lines:
+                print("The output file is empty!")
+                return
+
+            print("Hadoop Output (First 3 Lines):")
+            count = 0
+            for line in lines:
+                print(line.strip())
+                count += 1
+                if count == 3:  # Limit to 3 lines
+                    break
+
+    except FileNotFoundError:
+        print(f"Error: The file '{file_path}' does not exist!")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+output_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output/part-00000"
+
+process_hadoop_output(output_file)
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ python3 process_odd_or_even_output.py
+Error: The file '/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output/part-00000' does not exist!
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ ls /home/ritlab-01/1ms22cs60/hadoop-3.2.2/output
+part-r-00000  _SUCCESS
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ hadoop jar odd_or_even_analysis.jar OddOrEvenDriver file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/odd_or_even.txt file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/output
+2025-04-07 10:43:03,412 INFO impl.MetricsConfig: Loaded properties from hadoop-metrics2.properties
+2025-04-07 10:43:03,451 INFO impl.MetricsSystemImpl: Scheduled Metric snapshot period at 10 second(s).
+2025-04-07 10:43:03,451 INFO impl.MetricsSystemImpl: JobTracker metrics system started
+Exception in thread "main" org.apache.hadoop.mapred.FileAlreadyExistsException: Output directory file:/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output already exists
+	at org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.checkOutputSpecs(FileOutputFormat.java:164)
+	at org.apache.hadoop.mapreduce.JobSubmitter.checkSpecs(JobSubmitter.java:277)
+	at org.apache.hadoop.mapreduce.JobSubmitter.submitJobInternal(JobSubmitter.java:143)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1565)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1562)
+	at java.base/java.security.AccessController.doPrivileged(Native Method)
+	at java.base/javax.security.auth.Subject.doAs(Subject.java:423)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1762)
+	at org.apache.hadoop.mapreduce.Job.submit(Job.java:1562)
+	at org.apache.hadoop.mapreduce.Job.waitForCompletion(Job.java:1583)
+	at OddOrEvenDriver.main(OddOrEvenDriver.java:25)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.apache.hadoop.util.RunJar.run(RunJar.java:323)
+	at org.apache.hadoop.util.RunJar.main(RunJar.java:236)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ javac -classpath $(hadoop classpath) -d . OddOrEvenMapper.java OddOrEvenDriver.java
+jar -cvf odd_or_even_analysis.jar *.class
+hadoop jar odd_or_even_analysis.jar OddOrEvenDriver file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/odd_or_even.txt file:///home/ritlab-01/1ms22cs60/hadoop-3.2.2/output
+added manifest
+adding: CropDriver.class(in = 1385) (out= 792)(deflated 42%)
+adding: CropMapper.class(in = 1694) (out= 676)(deflated 60%)
+adding: DriverExample.class(in = 1396) (out= 796)(deflated 42%)
+adding: EarthquakeDriver.class(in = 1411) (out= 798)(deflated 43%)
+adding: EarthquakeMapper.class(in = 1712) (out= 685)(deflated 59%)
+adding: EmployeesDriver.class(in = 1468) (out= 823)(deflated 43%)
+adding: EmployeesMapper.class(in = 1788) (out= 727)(deflated 59%)
+adding: EmployeesReducer.class(in = 1684) (out= 715)(deflated 57%)
+adding: InsuranceDriver.class(in = 1466) (out= 827)(deflated 43%)
+adding: InsuranceMapper.class(in = 1788) (out= 725)(deflated 59%)
+adding: InsuranceReducer.class(in = 1684) (out= 714)(deflated 57%)
+adding: MapperExample.class(in = 1700) (out= 680)(deflated 60%)
+adding: OddOrEvenDriver.class(in = 1363) (out= 777)(deflated 42%)
+adding: OddOrEvenMapper.class(in = 1699) (out= 712)(deflated 58%)
+2025-04-07 10:43:30,290 INFO impl.MetricsConfig: Loaded properties from hadoop-metrics2.properties
+2025-04-07 10:43:30,327 INFO impl.MetricsSystemImpl: Scheduled Metric snapshot period at 10 second(s).
+2025-04-07 10:43:30,327 INFO impl.MetricsSystemImpl: JobTracker metrics system started
+Exception in thread "main" org.apache.hadoop.mapred.FileAlreadyExistsException: Output directory file:/home/ritlab-01/1ms22cs60/hadoop-3.2.2/output already exists
+	at org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.checkOutputSpecs(FileOutputFormat.java:164)
+	at org.apache.hadoop.mapreduce.JobSubmitter.checkSpecs(JobSubmitter.java:277)
+	at org.apache.hadoop.mapreduce.JobSubmitter.submitJobInternal(JobSubmitter.java:143)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1565)
+	at org.apache.hadoop.mapreduce.Job$11.run(Job.java:1562)
+	at java.base/java.security.AccessController.doPrivileged(Native Method)
+	at java.base/javax.security.auth.Subject.doAs(Subject.java:423)
+	at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1762)
+	at org.apache.hadoop.mapreduce.Job.submit(Job.java:1562)
+	at org.apache.hadoop.mapreduce.Job.waitForCompletion(Job.java:1583)
+	at OddOrEvenDriver.main(OddOrEvenDriver.java:25)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.apache.hadoop.util.RunJar.run(RunJar.java:323)
+	at org.apache.hadoop.util.RunJar.main(RunJar.java:236)
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat > analyze_odd_or_even.py << EOL
+data_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/odd_or_even.txt"
+output_file = "/home/ritlab-01/1ms22cs60/hadoop-3.2.2/odd_or_even_output.txt"
+
+def process_numbers(input_path, output_path):
+    with open(input_path, "r") as f:
+        numbers = f.readlines()
+
+    with open(output_path, "w") as f:
+        count = 0
+        for number in numbers:
+            try:
+                num = int(number.strip())
+                result = "even" if num % 2 == 0 else "odd"
+                f.write(f"{num}: {result}\n")
+                count += 1
+                if count == 3:  # Limit output to 3 lines
+                    break
+            except ValueError:
+                pass  # Skip invalid rows
+
+process_numbers(data_file, output_file)
+EOL
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ python3 analyze_odd_or_even.py
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$ cat /home/ritlab-01/1ms22cs60/hadoop-3.2.2/odd_or_even_output.txt
+ritlab-01@ritlab01-ThinkCentre-M70t-Gen-3:~/1ms22cs60/hadoop-3.2.2$  head /home/ritlab-01/1ms22cs60/hadoop-3.2.2/odd_or_even.txt
